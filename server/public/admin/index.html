@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="az">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PayTaksi Admin</title>
+  <style>
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#0b1220; color:#fff; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
+    .card { background:#111a2e; border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:12px; margin-bottom:12px; }
+    button, input { border-radius:12px; border:1px solid rgba(255,255,255,.12); padding:10px; font-size:16px; }
+    input { background:#0b1220; color:#fff; width: 100%; }
+    button { background:#21c17a; border:none; color:#062012; font-weight:800; cursor:pointer; }
+    button.secondary { background:#26324f; color:#fff; }
+    table { width:100%; border-collapse: collapse; }
+    td, th { border-bottom: 1px solid rgba(255,255,255,.10); padding: 8px; font-size: 13px; vertical-align: top; }
+    .muted { color: rgba(255,255,255,.75); font-size: 13px; }
+    a { color:#8fd3ff; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h2 style="margin:0">PayTaksi Admin Panel</h2>
+      <div class="muted">Giriş üçün ADMIN_PASSWORD lazımdır.</div>
+      <div style="margin-top:10px">
+        <input id="pass" placeholder="ADMIN_PASSWORD" type="password" />
+      </div>
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap">
+        <button onclick="loadAll()">Daxil ol</button>
+        <button class="secondary" onclick="loadAll()">Yenilə</button>
+      </div>
+      <div class="muted" id="stats" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Pending sürücülər</h3>
+      <div id="drivers"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Pending top-up (qəbzlər)</h3>
+      <div id="topups"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Son gedişlər</h3>
+      <div id="rides"></div>
+    </div>
+  </div>
+
+<script>
+  const apiBase = location.origin;
+
+  async function adminApi(path, opts={}) {
+    const pass = document.getElementById('pass').value;
+    const headers = opts.headers || {};
+    headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+    headers['x-admin-password'] = pass;
+    const res = await fetch(apiBase + path, { ...opts, headers });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(data?.error || 'api_error');
+    return data;
+  }
+
+  async function loadAll() {
+    try {
+      const stats = await adminApi('/api/admin/stats');
+      document.getElementById('stats').innerText = `Drivers pending: ${stats.driversPending} | Topups pending: ${stats.topupsPending} | Open rides: ${stats.ridesOpen}`;
+
+      const d = await adminApi('/api/admin/drivers/pending');
+      renderDrivers(d.drivers || []);
+
+      const t = await adminApi('/api/admin/topups/pending');
+      renderTopups(t.items || []);
+
+      const r = await adminApi('/api/admin/rides');
+      renderRides(r.rides || []);
+
+    } catch (e) {
+      alert('Xəta: ' + e.message);
+    }
+  }
+
+  function renderDrivers(list) {
+    if (!list.length) { document.getElementById('drivers').innerHTML = '<div class="muted">Yoxdur</div>'; return; }
+    const rows = list.map(u => {
+      const docs = u.documents || {};
+      const docLinks = Object.entries(docs)
+        .filter(([k,v]) => k.endsWith('Photo') || k.includes('Passport'))
+        .filter(([k,v]) => typeof v === 'string' && v)
+        .map(([k,v]) => `<a href="${v}" target="_blank">${k}</a>`)
+        .join(' | ');
+      return `<tr>
+        <td>#${u.id}<br><span class="muted">tg:${u.telegramId}</span></td>
+        <td>${u.firstName} ${u.lastName}<br><span class="muted">${u.phone || ''}</span></td>
+        <td>${u.carBrand || ''} ${u.carModel || ''}<br><b>${u.carPlate || ''}</b></td>
+        <td>${docLinks || '<span class="muted">Sənəd yoxdur</span>'}</td>
+        <td>
+          <button onclick="approveDriver(${u.id})">Təsdiqlə</button>
+          <button class="secondary" onclick="rejectDriver(${u.id})">Rədd</button>
+        </td>
+      </tr>`;
+    }).join('');
+    document.getElementById('drivers').innerHTML = `<table>
+      <thead><tr><th>ID</th><th>Ad</th><th>Avto</th><th>Sənədlər</th><th>Action</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  async function approveDriver(id) {
+    await adminApi('/api/admin/drivers/' + id + '/approve', { method:'POST', body:'{}' });
+    await loadAll();
+  }
+  async function rejectDriver(id) {
+    await adminApi('/api/admin/drivers/' + id + '/reject', { method:'POST', body:'{}' });
+    await loadAll();
+  }
+
+  function renderTopups(list) {
+    if (!list.length) { document.getElementById('topups').innerHTML = '<div class="muted">Yoxdur</div>'; return; }
+    const rows = list.map(t => {
+      return `<tr>
+        <td>#${t.id}</td>
+        <td>${t.user?.firstName || ''} ${t.user?.lastName || ''}<br><span class="muted">DriverID: ${t.userId}</span></td>
+        <td><b>${Number(t.amountAzN).toFixed(2)} AZN</b></td>
+        <td>${t.receiptPhoto ? `<a href="${t.receiptPhoto}" target="_blank">Qəbz</a>` : ''}</td>
+        <td>
+          <button onclick="approveTopup(${t.id})">Təsdiqlə</button>
+          <button class="secondary" onclick="rejectTopup(${t.id})">Rədd</button>
+        </td>
+      </tr>`;
+    }).join('');
+    document.getElementById('topups').innerHTML = `<table>
+      <thead><tr><th>ID</th><th>Sürücü</th><th>Məbləğ</th><th>Qəbz</th><th>Action</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  async function approveTopup(id) {
+    await adminApi('/api/admin/topups/' + id + '/approve', { method:'POST', body:'{}' });
+    await loadAll();
+  }
+  async function rejectTopup(id) {
+    await adminApi('/api/admin/topups/' + id + '/reject', { method:'POST', body: JSON.stringify({ note: 'Rədd edildi' }) });
+    await loadAll();
+  }
+
+  function renderRides(list) {
+    if (!list.length) { document.getElementById('rides').innerHTML = '<div class="muted">Yoxdur</div>'; return; }
+    const rows = list.map(r => {
+      return `<tr>
+        <td>#${r.id}</td>
+        <td>${r.status}</td>
+        <td>${r.passenger?.firstName || ''} ${r.passenger?.lastName || ''}</td>
+        <td>${r.driver ? (r.driver.firstName + ' ' + r.driver.lastName) : '<span class="muted">—</span>'}</td>
+        <td>${r.fareAzN ? (Number(r.fareAzN).toFixed(2)+' AZN') : '—'}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('rides').innerHTML = `<table>
+      <thead><tr><th>ID</th><th>Status</th><th>Passenger</th><th>Driver</th><th>Fare</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+</script>
+</body>
+</html>

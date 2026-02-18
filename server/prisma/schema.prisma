@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PASSENGER
+  DRIVER
+  ADMIN
+}
+
+enum DriverStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RideStatus {
+  REQUESTED
+  OFFERED
+  ACCEPTED
+  ARRIVED
+  STARTED
+  COMPLETED
+  CANCELED
+}
+
+enum TopupStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           Int          @id @default(autoincrement())
+  telegramId   String       @unique
+  role         Role
+  firstName    String
+  lastName     String
+  phone        String
+  operator     String?      // e.g. 50, 51, 55
+
+  // Driver-only fields
+  carBrand     String?
+  carModel     String?
+  carPlate     String?
+  carPhoto     String?
+  driverStatus DriverStatus @default(PENDING)
+
+  balance      Float        @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  documents    DriverDocument?
+  locations    DriverLocation[]
+  ridesAsDriver    Ride[]   @relation("RideDriver")
+  ridesAsPassenger Ride[]   @relation("RidePassenger")
+  topups       TopupRequest[]
+}
+
+model DriverDocument {
+  id                 Int      @id @default(autoincrement())
+  userId             Int      @unique
+  licensePhoto       String?
+  idFrontPhoto       String?
+  idBackPhoto        String?
+  techPassportFront  String?
+  techPassportBack   String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DriverLocation {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  lat       Float
+  lon       Float
+  heading   Float? 
+  speed     Float?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Ride {
+  id           Int        @id @default(autoincrement())
+  status       RideStatus @default(REQUESTED)
+
+  passengerId  Int
+  driverId     Int?
+
+  pickupLat    Float
+  pickupLon    Float
+  pickupAddr   String
+  dropLat      Float
+  dropLon      Float
+  dropAddr     String
+
+  distanceKm   Float? // calculated
+  fareAzN      Float? // calculated
+  commissionAzN Float? // 10%
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  passenger User  @relation("RidePassenger", fields: [passengerId], references: [id])
+  driver    User? @relation("RideDriver", fields: [driverId], references: [id])
+
+  @@index([status, createdAt])
+}
+
+model TopupRequest {
+  id        Int        @id @default(autoincrement())
+  userId    Int
+  amountAzN Float
+  receiptPhoto String?
+  status    TopupStatus @default(PENDING)
+  adminNote String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Setting {
+  key   String @id
+  value String
+}

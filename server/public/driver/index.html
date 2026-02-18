@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="az">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PayTaksi - Sürücü</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#0b1220; color:#fff; }
+    #map { height: 46vh; }
+    .panel { padding: 12px; }
+    .card { background:#111a2e; border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:12px; margin-bottom:10px; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; }
+    input, button, select { border-radius:12px; border:1px solid rgba(255,255,255,.12); padding:10px; font-size:16px; }
+    input, select { flex:1; background:#0b1220; color:#fff; }
+    button { background:#21c17a; border:none; color:#062012; font-weight:800; cursor:pointer; }
+    button.secondary { background:#26324f; color:#fff; }
+    button.danger { background:#e24b4b; color:#fff; }
+    .muted { color: rgba(255,255,255,.75); font-size: 13px; }
+    .big { font-size: 20px; font-weight: 900; }
+    .badge { display:inline-block; padding:6px 10px; border-radius:999px; background:#26324f; font-size:12px; }
+    .paybox { background:#0a0f1c; border:2px solid rgba(255,255,255,.12); border-radius:16px; padding:14px; }
+    .paytext { font-size: 26px; font-weight: 1000; letter-spacing: .4px; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="panel">
+    <div class="card">
+      <div class="row" style="justify-content:space-between; align-items:center">
+        <div>
+          <div class="big">Sürücü Paneli</div>
+          <div class="muted" id="meLine">Yüklənir...</div>
+        </div>
+        <div class="badge" id="statusBadge">—</div>
+      </div>
+      <div style="margin-top:10px" class="row">
+        <button class="secondary" onclick="refreshMe()">Yenilə</button>
+        <button class="secondary" onclick="toggleOnline()" id="onlineBtn">Onlayn ol</button>
+      </div>
+      <div class="muted" id="blockMsg" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card" id="regCard" style="display:none">
+      <div class="big">Qeydiyyat (Sürücü)</div>
+      <div class="muted">Telefon +994 ilə başlamalıdır.</div>
+      <div class="row" style="margin-top:10px">
+        <input id="firstName" placeholder="Ad" />
+        <input id="lastName" placeholder="Soyad" />
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input id="phone" placeholder="+994XXXXXXXXX" />
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input id="carBrand" placeholder="Avtomobil markası" />
+        <input id="carModel" placeholder="Model" />
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input id="carPlate" placeholder="Nömrə (məs: 77SG147)" />
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button onclick="saveProfile()">Yadda saxla</button>
+      </div>
+
+      <div class="muted" style="margin-top:12px">Sənədlər (şəkil yüklə):</div>
+      <form id="docsForm" onsubmit="uploadDocs(event)" style="margin-top:8px">
+        <div class="muted">Avtomobil şəkili</div>
+        <input type="file" name="carPhoto" accept="image/*" />
+        <div class="muted" style="margin-top:8px">Sürücülük vəsiqəsi</div>
+        <input type="file" name="licensePhoto" accept="image/*" />
+        <div class="muted" style="margin-top:8px">Şəxsiyyət vəsiqəsi (ön/arxa)</div>
+        <input type="file" name="idFrontPhoto" accept="image/*" />
+        <input type="file" name="idBackPhoto" accept="image/*" />
+        <div class="muted" style="margin-top:8px">Texniki pasport (ön/arxa)</div>
+        <input type="file" name="techPassportFront" accept="image/*" />
+        <input type="file" name="techPassportBack" accept="image/*" />
+        <div class="row" style="margin-top:10px">
+          <button type="submit" class="secondary">Sənədləri yüklə</button>
+        </div>
+      </form>
+      <div class="muted" id="docsMsg" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <div class="big">Balans artır</div>
+      <div class="muted">Kart-to-kart / terminal / M10 ilə ödəniş et → qəbzin şəklini yüklə. Admin təsdiqləyəndən sonra balans artır.</div>
+      <form id="topupForm" onsubmit="sendTopup(event)" style="margin-top:10px">
+        <div class="row">
+          <input id="topupAmount" placeholder="Məbləğ (AZN)" />
+          <input type="file" id="receipt" accept="image/*" />
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button type="submit" class="secondary">Qəbzi göndər</button>
+        </div>
+      </form>
+      <div class="muted" id="topupMsg" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <div class="big">Sifarişlər</div>
+      <div class="muted">Onlayn olanda sistem sizə sifariş göstərir. Qəbul et → Başla → Bitir.</div>
+      <div id="offers"></div>
+    </div>
+
+    <div class="card" id="finishCard" style="display:none">
+      <div class="big">Gediş bitdi</div>
+      <div class="paybox" style="margin-top:10px">
+        <div class="muted">Müştəridən alınacaq</div>
+        <div class="paytext" id="finishPrice">0.00 AZN</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const tg = window.Telegram?.WebApp;
+  if (tg) tg.expand();
+  const apiBase = location.origin;
+  let jwtToken = localStorage.getItem('pt_driver_token') || '';
+  let me = null;
+  let online = false;
+  let pollTimer = null;
+
+  async function api(path, opts={}) {
+    const headers = opts.headers || {};
+    if (!(opts.body instanceof FormData)) headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+    if (jwtToken) headers['Authorization'] = 'Bearer ' + jwtToken;
+    if (tg?.initData) headers['x-telegram-init-data'] = tg.initData;
+    const res = await fetch(apiBase + path, { ...opts, headers });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(data?.message || data?.error || 'api_error');
+    return data;
+  }
+
+  async function login() {
+    const headers = { 'x-telegram-init-data': tg?.initData || '' };
+    const res = await fetch(apiBase + '/api/auth/webapp?bot=driver', { method:'POST', headers });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'login_failed');
+    jwtToken = data.token;
+    localStorage.setItem('pt_driver_token', jwtToken);
+    me = data.user;
+  }
+
+  // Map
+  const map = L.map('map');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+  map.setView([40.4093, 49.8671], 12);
+  let myMarker = null;
+
+  function setMarker(lat, lon) {
+    const p = [lat, lon];
+    if (!myMarker) myMarker = L.marker(p).addTo(map);
+    myMarker.setLatLng(p);
+  }
+
+  function wazeLink(lat, lon) {
+    return `https://waze.com/ul?ll=${lat},${lon}&navigate=yes`;
+  }
+
+  async function refreshMe() {
+    const data = await api('/api/profile/me');
+    me = data.user;
+    document.getElementById('meLine').innerText = `${me.firstName} ${me.lastName} • Balans: ${Number(me.balance||0).toFixed(2)} AZN`;
+    document.getElementById('statusBadge').innerText = me.driverStatus;
+
+    const need = !me.phone || !me.carPlate;
+    document.getElementById('regCard').style.display = need ? 'block' : 'none';
+    if (need) {
+      document.getElementById('firstName').value = me.firstName || '';
+      document.getElementById('lastName').value = me.lastName || '';
+      document.getElementById('phone').value = me.phone || '';
+      document.getElementById('carBrand').value = me.carBrand || '';
+      document.getElementById('carModel').value = me.carModel || '';
+      document.getElementById('carPlate').value = me.carPlate || '';
+    }
+
+    const block = (me.driverStatus !== 'APPROVED') ? 'Sürücü statusu təsdiqlənməyib. Admin yoxlamasını gözləyin.' : (me.balance <= -15 ? 'Balans -15 AZN və daha aşağıdır. Sifariş qəbul edilmir.' : '');
+    document.getElementById('blockMsg').innerText = block;
+  }
+
+  async function saveProfile() {
+    await api('/api/profile/update', {
+      method:'POST',
+      body: JSON.stringify({
+        firstName: document.getElementById('firstName').value,
+        lastName: document.getElementById('lastName').value,
+        phone: document.getElementById('phone').value,
+        carBrand: document.getElementById('carBrand').value,
+        carModel: document.getElementById('carModel').value,
+        carPlate: document.getElementById('carPlate').value
+      })
+    });
+    await refreshMe();
+  }
+
+  async function uploadDocs(e) {
+    e.preventDefault();
+    const fd = new FormData(document.getElementById('docsForm'));
+    try {
+      await fetch(apiBase + '/api/profile/upload', {
+        method:'POST',
+        headers: { 'Authorization': 'Bearer ' + jwtToken, 'x-telegram-init-data': tg?.initData || '' },
+        body: fd
+      }).then(r => r.json());
+      document.getElementById('docsMsg').innerText = '✅ Yükləndi. Admin təsdiqləyəndən sonra sürücü statusu APPROVED olacaq.';
+    } catch (err) {
+      document.getElementById('docsMsg').innerText = 'Xəta: ' + err.message;
+    }
+  }
+
+  async function sendTopup(e) {
+    e.preventDefault();
+    const amount = document.getElementById('topupAmount').value;
+    const file = document.getElementById('receipt').files[0];
+    if (!file) return alert('Qəbz şəklini seçin');
+    const fd = new FormData();
+    fd.append('amountAzN', amount);
+    fd.append('receipt', file);
+
+    const res = await fetch(apiBase + '/api/topup/request', {
+      method:'POST',
+      headers: { 'Authorization': 'Bearer ' + jwtToken, 'x-telegram-init-data': tg?.initData || '' },
+      body: fd
+    });
+    const data = await res.json();
+    if (!res.ok) return alert('Xəta: ' + (data?.error||''));
+    document.getElementById('topupMsg').innerText = `✅ Qəbz göndərildi. (ID: #${data.topup.id})`;
+  }
+
+  async function pollOffers() {
+    if (!online) return;
+    try {
+      const data = await api('/api/rides/driver/offers');
+      if (data.blocked) {
+        document.getElementById('offers').innerHTML = `<div class="muted">${data.message || data.reason}</div>`;
+        return;
+      }
+      renderOffers(data.offers || []);
+    } catch (e) {
+      document.getElementById('offers').innerHTML = `<div class="muted">Xəta: ${e.message}</div>`;
+    }
+  }
+
+  function renderOffers(list) {
+    if (!list.length) {
+      document.getElementById('offers').innerHTML = '<div class="muted">Hələlik sifariş yoxdur...</div>';
+      return;
+    }
+    document.getElementById('offers').innerHTML = list.map(r => {
+      return `<div class="card" style="background:#0b1220">
+        <div class="big">Sifariş #${r.id}</div>
+        <div class="muted">Götürmə: ${r.pickupAddr}</div>
+        <div class="muted">Gedəcəyiniz: ${r.dropAddr}</div>
+        <div class="row" style="margin-top:10px">
+          <button onclick="acceptRide(${r.id})">Qəbul et</button>
+          <a class="secondary" style="text-decoration:none; padding:10px 12px; border-radius:12px; background:#26324f; color:#fff" href="${wazeLink(r.pickupLat, r.pickupLon)}" target="_blank">Waze ilə get</a>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async function acceptRide(id) {
+    const data = await api('/api/rides/driver/accept', { method:'POST', body: JSON.stringify({ rideId: id }) });
+    document.getElementById('offers').innerHTML = `<div class="card" style="background:#0b1220">
+      <div class="big">Qəbul edildi #${data.ride.id}</div>
+      <div class="row" style="margin-top:10px">
+        <button class="secondary" onclick="startRide(${data.ride.id})">Gedişə başla</button>
+        <button class="danger" onclick="completeRide(${data.ride.id})">Gedişi bitir</button>
+      </div>
+    </div>`;
+  }
+
+  async function startRide(id) {
+    await api('/api/rides/driver/start', { method:'POST', body: JSON.stringify({ rideId: id }) });
+    alert('✅ Gediş başlandı');
+  }
+
+  async function completeRide(id) {
+    const data = await api('/api/rides/driver/complete', { method:'POST', body: JSON.stringify({ rideId: id }) });
+    document.getElementById('finishCard').style.display = 'block';
+    document.getElementById('finishPrice').innerText = Number(data.fareAzN).toFixed(2) + ' AZN';
+    await refreshMe();
+  }
+
+  function toggleOnline() {
+    online = !online;
+    document.getElementById('onlineBtn').innerText = online ? 'Oflayn ol' : 'Onlayn ol';
+    if (online) {
+      pollOffers();
+      pollTimer = setInterval(pollOffers, 5000);
+      watchLocation();
+    } else {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  function watchLocation() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.watchPosition((pos) => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      setMarker(lat, lon);
+      map.setView([lat, lon], 15);
+      // MVP: location not saved to DB to keep simple
+    }, () => {}, { enableHighAccuracy:true, maximumAge: 2000, timeout: 8000 });
+  }
+
+  (async () => {
+    try {
+      await login();
+      await refreshMe();
+    } catch (e) {
+      alert('Giriş xətası: ' + e.message);
+    }
+  })();
+</script>
+</body>
+</html>
