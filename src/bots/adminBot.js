@@ -111,10 +111,7 @@ ID: ${r.id}` ,
 
   bot.hears("ℹ️ Kömək", async (ctx) => {
     if (!await isAdminTelegram(ctx)) return;
-    await ctx.reply("Admin bot:
-- Sürücü təsdiqləri
-- Balans yükləmələri (qəbz)
-Daha geniş admin panel: /admin (web).", adminMain());
+    await ctx.reply("Admin bot:\n- Sürücü təsdiqləri\n- Balans yükləmələri (qəbz)\nDaha geniş admin panel: /admin (web).", adminMain());
   });
 
   bot.catch((err) => console.error("Admin bot error:", err));

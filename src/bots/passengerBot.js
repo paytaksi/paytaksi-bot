@@ -29,15 +29,13 @@ function createPassengerBot(token, notifyDriversFn){
 
   bot.start(async (ctx) => {
     await upsertPassenger(ctx);
-    await ctx.reply("Salam! PayTaksi 🚕
-Sifariş vermək üçün menyudan istifadə et.", passengerMain());
+    await ctx.reply("Salam! PayTaksi 🚕\nSifariş vermək üçün menyudan istifadə et.", passengerMain());
   });
 
   bot.hears("🚕 Taksi sifariş et", async (ctx) => {
     const user = await upsertPassenger(ctx);
     st.set(user.telegramId, { step: "PICKUP", data: {} });
-    await ctx.reply("1) Zəhmət olmasa *qarşılama ünvanını* göndər.
-📍 Location kimi göndər (telefonun “Yer” funksiyası).", { parse_mode:"Markdown", ...requireLocation() });
+    await ctx.reply("1) Zəhmət olmasa *qarşılama ünvanını* göndər.\n📍 Location kimi göndər (telefonun “Yer” funksiyası).", { parse_mode:"Markdown", ...requireLocation() });
   });
 
   bot.on("location", async (ctx) => {
@@ -93,16 +91,11 @@ Telefon: ${user.phone || "-"}
     const rides = await prisma.ride.findMany({ where: { passengerId: user.id }, orderBy:{ createdAt:"desc" }, take: 10 });
     if (!rides.length) return ctx.reply("Hələ sifariş yoxdur.", passengerMain());
     const lines = rides.map(r => `• ${r.status} | ${r.fareAzN ?? "-"} AZN | ${r.createdAt.toISOString().slice(0,16).replace("T"," ")}`);
-    await ctx.reply("Son 10 sifariş:
-" + lines.join("
-"), passengerMain());
+    await ctx.reply("Son 10 sifariş:\n" + lines.join("\n"), passengerMain());
   });
 
   bot.hears("ℹ️ Kömək", async (ctx) => {
-    await ctx.reply("Kömək:
-- 'Taksi sifariş et' → 2 dəfə location göndər.
-- Əgər location göndərə bilmirsənsə: Telefon → GPS aç → Telegramda 📎 → Location.
-", passengerMain());
+    await ctx.reply("Kömək:\n- 'Taksi sifariş et' → 2 dəfə location göndər.\n- Əgər location göndərə bilmirsənsə: Telefon → GPS aç → Telegramda 📎 → Location.\n", passengerMain());
   });
 
   bot.catch((err) => console.error("Passenger bot error:", err));

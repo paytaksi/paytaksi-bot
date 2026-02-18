@@ -42,9 +42,7 @@ function createDriverBot(token, broadcastOnlineDriversRegistry, adminNotifyFn){
     const dp = await prisma.driverProfile.findUnique({ where:{ userId:user.id }});
     if (dp.status === "PENDING"){
       st.set(user.telegramId, { step:"DRIVER_REG_NAME", data:{} });
-      await ctx.reply("Salam Sürücü! Qeydiyyat başlayır.
-
-1) Adınızı yazın (məs: Kenan):");
+      await ctx.reply("Salam Sürücü! Qeydiyyat başlayır.\n\n1) Adınızı yazın (məs: Kenan):");
     }else{
       await ctx.reply("Salam! Sürücü paneli açıldı.", driverMain());
     }
@@ -167,8 +165,7 @@ function createDriverBot(token, broadcastOnlineDriversRegistry, adminNotifyFn){
       }
 
       st.clear(tgId);
-      await ctx.reply("✅ Qeydiyyat tamamlandı. Admin təsdiqi gözlənilir.
-Təsdiqdən sonra sifariş qəbul edə biləcəksiniz.", driverMain());
+      await ctx.reply("✅ Qeydiyyat tamamlandı. Admin təsdiqi gözlənilir.\nTəsdiqdən sonra sifariş qəbul edə biləcəksiniz.", driverMain());
 
       await adminNotifyFn(`🧑‍✈️ Yeni sürücü qeydiyyatı: ${user.firstName||""} ${user.lastName||""}
 TG: ${user.telegramId}
@@ -206,9 +203,7 @@ Məbləğ: ${amount} AZN
     }else{
       const bal = await getDriverBalance(user.id);
       if (bal <= -15){
-        return ctx.reply("⛔ Balansınız -15 AZN və ya daha aşağıdır.
-Səbəb: komissiya borcu.
-Balans artırmadan sifariş qəbul edilmir.", driverMain());
+        return ctx.reply("⛔ Balansınız -15 AZN və ya daha aşağıdır.\nSəbəb: komissiya borcu.\nBalans artırmadan sifariş qəbul edilmir.", driverMain());
       }
       broadcastOnlineDriversRegistry.setOnline(user.telegramId, true);
       return ctx.reply("🟢 Onlayn oldunuz. Yeni sifarişlər gələcək.", driverMain());
@@ -226,8 +221,7 @@ Status: ${status}`, driverMain());
   bot.hears("➕ Balans artır", async (ctx) => {
     const user = await upsertDriver(ctx);
     st.set(user.telegramId, { step:"TOPUP_AMOUNT", data:{} });
-    await ctx.reply("Balans artırma:
-1) Məbləği yazın (məs: 10):");
+    await ctx.reply("Balans artırma:\n1) Məbləği yazın (məs: 10):");
   });
 
   bot.on("text", async (ctx, next) => {
@@ -239,8 +233,7 @@ Status: ${status}`, driverMain());
     s.data.amountAzN = Math.round(val*100)/100;
     s.step = "TOPUP_RECEIPT";
     st.set(tgId, s);
-    return ctx.reply("2) İndi ödəniş qəbzini foto kimi göndərin.
-(Qeyd: Bu MVP-də admin əl ilə təsdiqləyəcək.)");
+    return ctx.reply("2) İndi ödəniş qəbzini foto kimi göndərin.\n(Qeyd: Bu MVP-də admin əl ilə təsdiqləyəcək.)");
   });
 
   // Driver receives ride offers
@@ -323,12 +316,7 @@ Komissiya balansdan çıxıldı: ${comm} AZN`, driverMain());
   });
 
   bot.hears("ℹ️ Kömək", async (ctx) => {
-    await ctx.reply("Kömək:
-- Onlayn olduqda sifarişlər gəlir.
-- Gediş başlayanda: /start_trip
-- Gediş bitirəndə: /finish_trip
-- Balans -15 AZN olarsa sifariş qəbul edilmir.
-", driverMain());
+    await ctx.reply("Kömək:\n- Onlayn olduqda sifarişlər gəlir.\n- Gediş başlayanda: /start_trip\n- Gediş bitirəndə: /finish_trip\n- Balans -15 AZN olarsa sifariş qəbul edilmir.\n", driverMain());
   });
 
   bot.catch((err) => console.error("Driver bot error:", err));
